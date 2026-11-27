@@ -13,32 +13,51 @@ async function apiFetch(path, options = {}) {
   const text = await res.text();
   let data;
   try { data = JSON.parse(text); }
-  catch { throw new Error(`Erreur serveur (${res.status}) : réponse invalide`); }
+  catch { throw Object.assign(new Error(`Erreur serveur (${res.status}) : réponse invalide`), { status: res.status }); }
   if (!res.ok) {
     const err = data.error;
-    throw new Error(typeof err === 'string' ? err : (err?.message || 'Erreur serveur'));
+    throw Object.assign(new Error(typeof err === 'string' ? err : (err?.message || 'Erreur serveur')), { status: res.status });
   }
   return data;
 }
+const json = (method, body) => ({ method, body: JSON.stringify(body ?? {}) });
 
 export const authApi = {
-  login:          (username, password) => apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  register:       (username, password) => apiFetch('/auth/register', json('POST', { username, password })),
+  login:          (username, password) => apiFetch('/auth/login', json('POST', { username, password })),
   me:             ()                   => apiFetch('/auth/me'),
-  changePassword: (new_password)       => apiFetch('/auth/change-password', { method: 'POST', body: JSON.stringify({ new_password }) }),
+  changePassword: (new_password)       => apiFetch('/auth/change-password', json('POST', { new_password })),
+};
+
+export const profileApi = {
+  update:       (data)                  => apiFetch('/profile', json('PUT', data)),
+  uploadAvatar: (base64, contentType)   => apiFetch('/profile/avatar/upload', json('POST', { base64, contentType })),
 };
 
 export const bingoApi = {
-  access:     ()              => apiFetch('/bingo/access'),
   player:     ()              => apiFetch('/bingo/player'),
   adminCells: ()              => apiFetch('/bingo/admin'),
-  setActive:  (active)        => apiFetch('/bingo/admin/active', { method: 'POST', body: JSON.stringify({ active }) }),
-  saveCell:   (pos, data)     => apiFetch(`/bingo/admin/cells/${pos}`, { method: 'PUT', body: JSON.stringify(data) }),
-  reveal:     (pos, revealed) => apiFetch(`/bingo/admin/cells/${pos}/reveal`, { method: 'POST', body: JSON.stringify({ revealed }) }),
+  setActive:  (active)        => apiFetch('/bingo/admin/active', json('POST', { active })),
+  saveCell:   (pos, data)     => apiFetch(`/bingo/admin/cells/${pos}`, json('PUT', data)),
+  reveal:     (pos, revealed) => apiFetch(`/bingo/admin/cells/${pos}/reveal`, json('POST', { revealed })),
+  // Gages (lignes, colonnes, diagonale, carte pleine)
+  saveGage:   (key, data)     => apiFetch(`/bingo/admin/gages/${key}`, json('PUT', data)),
+  resetGage:  (key)           => apiFetch(`/bingo/admin/gages/${key}/reset`, json('POST')),
+  revealGage: (key)           => apiFetch(`/bingo/gage/${key}/reveal`, json('POST')),
 };
 
-// Réglages (superadmin)
+// Gestion (super admin)
 export const adminApi = {
-  getUsers:          ()     => apiFetch('/admin/users'),
-  getBingoAccess:    ()     => apiFetch('/admin/bingo-access'),
-  updateBingoAccess: (data) => apiFetch('/admin/bingo-access', { method: 'PUT', body: JSON.stringify(data) }),
+  modules:           ()              => apiFetch('/admin/modules'),
+  users:             ()              => apiFetch('/admin/users'),
+  setUserGroups:     (id, group_ids) => apiFetch(`/admin/users/${id}/groups`, json('PUT', { group_ids })),
+  resetPassword:     (id)            => apiFetch(`/admin/users/${id}/reset-password`, json('POST')),
+  deleteUser:        (id)            => apiFetch(`/admin/users/${id}`, { method: 'DELETE' }),
+  groups:            ()              => apiFetch('/admin/groups'),
+  createGroup:       (data)          => apiFetch('/admin/groups', json('POST', data)),
+  updateGroup:       (id, data)      => apiFetch(`/admin/groups/${id}`, json('PUT', data)),
+  deleteGroup:       (id)            => apiFetch(`/admin/groups/${id}`, { method: 'DELETE' }),
+  bingoSettings:     ()              => apiFetch('/admin/bingo-settings'),
+  bingoImage:        (slot, data)    => apiFetch(`/admin/bingo-images/${slot}`, json('PUT', data)),
+  saveBingoSettings: (data)          => apiFetch('/admin/bingo-settings', json('PUT', data)),
 };

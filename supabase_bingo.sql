@@ -67,3 +67,44 @@ begin
     alter publication supabase_realtime add table bingo_state;
   end if;
 end $$;
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- v1.1.0 — Gages (un par ligne, par colonne et pour la diagonale)
+-- ───────────────────────────────────────────────────────────────────────────
+
+-- Tous les gages (clé : row-0…, col-0…, diag). RLS activé SANS policy : invisible
+-- pour la clé anon, seul le backend y accède. Le joueur ne peut donc pas lire un gage
+-- avant de l'avoir dévoilé.
+create table if not exists bingo_gages (
+  line_key    text primary key,
+  text        text,
+  image_url   text,
+  revealed    boolean not null default false,
+  revealed_at timestamptz,
+  updated_by  text,
+  updated_at  timestamptz not null default now()
+);
+alter table bingo_gages enable row level security;
+
+-- Copie des gages DÉJÀ DÉVOILÉS seulement (lisible par tous + temps réel).
+create table if not exists bingo_gages_public (
+  line_key    text primary key,
+  text        text,
+  image_url   text,
+  revealed_at timestamptz not null default now()
+);
+alter table bingo_gages_public enable row level security;
+
+drop policy if exists "bingo_gages_public_read" on bingo_gages_public;
+create policy "bingo_gages_public_read" on bingo_gages_public
+  for select to anon, authenticated using (true);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'bingo_gages_public'
+  ) then
+    alter publication supabase_realtime add table bingo_gages_public;
+  end if;
+end $$;

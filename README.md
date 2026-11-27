@@ -1,26 +1,28 @@
 # 🔮 Delice_TV
 
-Grille de Bingo en temps réel pour Delice_TV, thème magique rouge et or.
+Bingo en temps réel pour Delice_TV (thème magique rouge et or), avec comptes, groupes et profils.
 
-- **Admin** : ajoute du texte et/ou une image dans chaque case, révèle les cases, ouvre et ferme la grille.
-- **Joueur** : attend devant une sphère, puis voit la grille s'ouvrir (confettis) et les cases se révéler **en direct**, sans recharger.
-- Les cases cachées ne sont **jamais** envoyées au navigateur des joueurs.
+- **Admins** : préparent la grille et les gages, révèlent les cases, ouvrent et ferment la grille.
+- **Streamer** (celui qui joue) : voit la grille se révéler en direct et dévoile lui-même les gages quand une ligne est réalisée.
+- **Les autres** : ne voient que ce que leurs groupes leur montrent.
+- Les cases et gages cachés ne sont **jamais** envoyés au navigateur des joueurs.
 
-Ce projet partage la **même base Supabase** que l'app principale : mêmes usagers, mêmes mots de passe, mêmes droits.
+Ce projet partage la **même base Supabase** que Pool Olympique, mais ses comptes sont dans leur propre table (`delice_users`).
 
 ```
-backend/    API Express (connexion + routes Bingo)   → Render
-frontend/   React + Vite                               → Netlify
-supabase_bingo.sql   tables du Bingo (à exécuter une seule fois si ce n'est pas déjà fait)
+backend/    API Express (comptes, groupes, Bingo)   → Render
+frontend/   React + Vite                              → Netlify
+supabase_delice.sql   comptes, groupes, modules (+ copie des 3 comptes et super admin)
+supabase_bingo.sql    tables du Bingo et des gages
 ```
 
 ## Mise en ligne (gratuit)
 
 ### 1. Supabase
-Aucune nouvelle base. Si tu as déjà exécuté `supabase_bingo.sql` de l'app principale (v1.4.0 ou plus), **il n'y a rien à faire**. Sinon, exécute-le une fois dans *SQL Editor* (il est sans danger si relancé).
+Dans *SQL Editor*, exécute **`supabase_delice.sql`**, puis **`supabase_bingo.sql`**. Les deux sont **sans danger si relancés** (ils ne recréent que ce qui manque). À refaire quand le `CHANGELOG.md` l'indique.
 
 ### 2. GitHub
-Crée un nouveau dépôt et pousse ce dossier tel quel (`.env` est ignoré par `.gitignore`).
+Crée un nouveau dépôt et pousse ce dossier (`.env` est ignoré par `.gitignore`).
 
 ### 3. Render — le backend
 *New → Web Service* → choisis le dépôt (ou *New → Blueprint*, qui lit `render.yaml`).
@@ -33,45 +35,69 @@ Crée un nouveau dépôt et pousse ce dossier tel quel (`.env` est ignoré par `
 | Instance Type | Free |
 | Health Check Path | `/health` |
 
-Variables d'environnement :
-
 | Variable | Valeur |
 |---|---|
-| `SUPABASE_URL` | la même que l'app principale |
-| `SUPABASE_SERVICE_KEY` | la même que l'app principale (clé *service_role*) |
-| `JWT_SECRET` | une longue chaîne aléatoire (pas besoin qu'elle soit la même qu'ailleurs) |
-| `FRONTEND_URL` | l'adresse Netlify du Bingo, voir étape 5 |
+| `SUPABASE_URL` | celle de ton projet Supabase |
+| `SUPABASE_SERVICE_KEY` | la clé secrète (*service_role*) de ton projet |
+| `JWT_SECRET` | une longue chaîne aléatoire |
+| `FRONTEND_URL` | l'adresse Netlify du site (étape 5) |
 
 ### 4. Netlify — le frontend
 *Add new site → Import from Git* → choisis le dépôt. `netlify.toml` règle déjà le dossier (`frontend`), la commande et le dossier publié (`dist`).
 
-Variables d'environnement :
-
 | Variable | Valeur |
 |---|---|
 | `VITE_API_URL` | l'adresse Render du backend, sans `/` à la fin |
-| `VITE_SUPABASE_URL` | *(facultatif)* l'URL Supabase — par défaut, celle de l'app principale |
-| `VITE_SUPABASE_ANON_KEY` | *(facultatif)* la clé *anon* — par défaut, celle de l'app principale |
-
-Puis déploie. Pour un nom de domaine à toi : *Domain management → Add a domain* (le domaine doit t'appartenir ; sinon l'adresse gratuite en `.netlify.app` convient).
+| `VITE_SUPABASE_URL` | *(facultatif)* par défaut, celle de Pool Olympique (même projet) |
+| `VITE_SUPABASE_ANON_KEY` | *(facultatif)* la clé *anon* (publique) |
 
 ### 5. Boucler la boucle
-Retourne dans Render et mets l'adresse Netlify dans `FRONTEND_URL` (ex. `https://delice-tv.netlify.app`, sans `/` final ; plusieurs adresses possibles, séparées par des virgules). Render redémarre tout seul.
+Mets l'adresse Netlify dans `FRONTEND_URL` côté Render (sans `/` final ; plusieurs adresses possibles, séparées par des virgules).
 
-## Premier accès
+## Comptes, groupes et droits
 
-1. Ouvre le site et connecte-toi avec ton compte habituel.
-2. Un **superadmin** (rôle de niveau 1) voit le bouton **⚙ Réglages** : il y choisit, pour chaque usager, *Aucun / Joueur / Admin*, la taille de la grille.
-3. Tant que rien n'est enregistré, seul `stephane` est admin du Bingo.
-4. Les droits du Bingo sont les mêmes que dans l'app principale (même table) : on peut les régler depuis l'un ou l'autre.
+- **Super admin** : le compte `0a032b27-…` (copié depuis Pool Olympique par le script SQL). Il voit tout et a l'onglet **⚙ Gestion**. Ce statut ne peut pas être donné depuis le site.
+- **Inscription** : depuis la page de connexion. Un nouvel inscrit n'est dans **aucun groupe** : il arrive sur son **profil** (nom affiché, avatar) et ne voit rien d'autre. Le profil est ouvert à tout le monde.
+- **Gestion → Profils des joueurs** : le super admin ajoute les gens aux groupes (une personne peut être dans plusieurs groupes), génère un mot de passe temporaire, supprime un compte. Les inscrits sans groupe sont signalés.
+- **Gestion → Groupes** (super admin seulement) : on crée autant de groupes que voulu et on coche, pour chacun, ses droits. Quelqu'un dans plusieurs groupes a la somme de leurs droits. Les changements s'appliquent tout de suite, sans reconnexion.
+- **Gestion → Bingo** : taille de la grille et images (casse-tête, dos des gages, dos du toupet suprême).
+
+Groupes créés au départ (modifiables) : **Admins** (Bingo admin), **Streamer** (Bingo streamer + Twitch), **Joueurs** (aucun droit — à définir plus tard).
+
+### Droits d'un groupe
+
+| Rubrique | Droit | Ce que ça donne |
+|---|---|---|
+| Rôles dans le Bingo | Admin | prépare la grille, révèle les cases, écrit les gages, ouvre / ferme la grille |
+| | Streamer | voit la grille et dévoile les gages (c'est lui qui joue) |
+| | Spectateur | regarde la grille et les cases révélées en direct |
+| Écrans | Compte Twitch (bientôt) | page prévue pour lier son compte Twitch |
+| Paramètres | **Accès aux paramètres** | affiche l'onglet Gestion (la porte d'entrée) |
+| | Profils des joueurs | voir les profils, réinitialiser les mots de passe |
+| | Paramètres du Bingo | taille de la grille, images des cartes |
+| | Paramètres du streamer | réglages du streamer (vide pour l'instant) |
+
+Cocher une section de paramètres coche aussi *Accès aux paramètres*. Exemple : **Samba** = profils + Bingo (pas le streamer) ; **Drity** = Bingo + streamer (pas les mots de passe).
+
+- Seul le super admin gère les groupes et leurs droits, place les gens dans les groupes et supprime des comptes.
+- On ne peut réinitialiser le mot de passe que d'un compte qui n'a **pas plus de droits que soi** (sinon on pourrait se connecter à sa place). Le compte d'un super admin n'est réinitialisable que par un super admin.
+
+## Le Bingo
+
+- La grille tient sur l'écran, sans défilement (ordinateur et téléphone).
+- **Gages** : une carte au bout de chaque ligne (à droite), sous chaque colonne (en bas) et dans le coin pour la diagonale haut-gauche → bas-droite (grille carrée seulement). Les admins écrivent chaque gage (texte et/ou image).
+- Une ligne est **réalisée** quand toutes ses cases sont révélées. Le streamer clique alors sur le dos de la carte : elle se retourne, pour tout le monde en direct. Le serveur refuse le clic sinon.
+- **Toupet suprême** : la case supplémentaire tout en bas. Elle ne se dévoile que lorsque **toutes** les cases de la grille sont révélées.
+- **Dos des cartes** (Gestion → Bingo) : une image découpée en **casse-tête** sur les cases cachées, une image **répétée** sur chaque gage, et une image **unique** sur le toupet suprême. Les images sont toujours affichées **en entier et centrées** (jamais coupées) ; si leurs proportions diffèrent de celles de la carte, du velours rouge complète les bords.
+- Un admin peut remettre un gage face cachée (clic par erreur). Fermer la grille ramène tout le monde à l'écran d'attente.
+- Pour tester en streamer : crée un compte de test, mets-le dans le groupe *Streamer*. (Le super admin a tous les droits, y compris celui de dévoiler.)
 
 ## À savoir
 
-- **Reconnexion** : chaque adresse a sa propre session, les usagers se connectent donc une fois sur ce site (mêmes identifiants).
-- **Comptes** : la création de compte et les réinitialisations de mot de passe restent dans l'app principale.
-- **Render gratuit** : le serveur s'endort après 15 minutes sans trafic et met jusqu'à une minute à se réveiller. Ouvre la page quelques minutes avant la partie. Les 750 heures gratuites sont partagées entre tous tes services Render.
-- **Supabase gratuit** : un projet inactif est mis en pause après 7 jours ; le temps réel est limité à 200 connexions simultanées (partagées avec l'app principale).
-- **Images** : rangées dans le bucket Supabase `avatars`, sous `bingo/`.
+- **Render gratuit** : le serveur s'endort après 15 minutes sans trafic et met jusqu'à une minute à se réveiller (l'écran de connexion l'indique). Ouvre la page quelques minutes avant la partie.
+- **Supabase gratuit** : un projet inactif est mis en pause après 7 jours ; le temps réel est limité à 200 connexions simultanées.
+- **Images** : rangées dans le bucket Supabase `avatars` (avatars sous `delice/`, Bingo sous `bingo/`).
+- **Mots de passe** : un mot de passe temporaire (généré dans Gestion) oblige à en choisir un nouveau à la connexion.
 
 ## Développement local
 
@@ -93,3 +119,4 @@ npm run dev               # http://localhost:5173
 
 - **Couleurs et polices** : variables en haut de `frontend/src/styles.css`.
 - **Animations** (sphère, confettis, baguette) : adresses dans `frontend/src/bingo/animations.js`.
+- **Ajouter un droit** : l'ajouter dans `backend/src/modules.js` (la liste), puis lui donner son écran dans `frontend/src/App.jsx`.

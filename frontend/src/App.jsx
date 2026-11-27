@@ -1,38 +1,43 @@
-import { useCallback, useEffect, useState } from 'react';
-import { AuthProvider, useAuth, getLevel } from './hooks/useAuth';
-import { bingoApi } from './lib/api';
+import { useEffect } from 'react';
+import { useState } from 'react';
+import { AuthProvider, useAuth } from './hooks/useAuth';
 import LoginPage from './pages/LoginPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
-import SettingsPage from './pages/SettingsPage';
-import BingoAdmin from './bingo/BingoAdmin';
-import BingoPlayer from './bingo/BingoPlayer';
+import BingoPage from './pages/BingoPage';
+import ProfilePage from './pages/ProfilePage';
+import TwitchPage from './pages/TwitchPage';
+import ManagePage from './pages/ManagePage';
 import Loading from './components/Loading';
+import Avatar from './components/Avatar';
+
+// Ce que chaque usager voit dépend de ses groupes (modules) — voir Gestion.
+// Le profil est ouvert à TOUTE personne connectée, même sans groupe (c'est tout ce qu'elle voit au début).
+const NAV = [
+  { key: 'bingo',   label: '🎯 Bingo',   show: (can) => can('bingo.view', 'bingo.stream', 'bingo.admin') },
+  { key: 'profile', label: '👤 Profil',  show: () => true },
+  { key: 'twitch',  label: '📺 Twitch',  show: (can) => can('twitch') },
+  { key: 'manage',  label: '⚙ Gestion',  show: (can) => can('settings') },   // la porte d'entrée des paramètres
+];
 
 function Shell() {
-  const { user, loading, logout } = useAuth();
-  const [access, setAccess] = useState(undefined);   // undefined = chargement · { role, label, ... }
-  const [view, setView]     = useState('bingo');     // 'bingo' | 'settings'
-  const [mode, setMode]     = useState('player');    // admin : bascule vue admin / vue joueur
+  const { user, loading, logout, refresh, can } = useAuth();
+  const [view, setView] = useState(null);
 
-  const refreshAccess = useCallback(() => {
-    return bingoApi.access()
-      .then(r => { setAccess(r); return r; })
-      .catch(e => setAccess({ role: null, error: e.message }));
-  }, []);
-
+  // Relit les droits quand on revient sur l'onglet (ex. on vient d'être ajouté à un groupe)
   useEffect(() => {
-    if (!user || user.must_change_password) { setAccess(undefined); return; }
-    setAccess(undefined);
-    setView('bingo');
-    refreshAccess().then(r => { if (r?.role === 'admin') setMode('admin'); });
-  }, [user?.id, user?.must_change_password, refreshAccess]);
+    if (!user) return;
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', onVisible); };
+  }, [user?.id, refresh]);
 
   if (loading) return <Loading />;
   if (!user) return <LoginPage />;
   if (user.must_change_password) return <ChangePasswordPage />;
 
-  const isSuper = getLevel(user) === 1;
-  const role = access?.role;
+  const items = NAV.filter(n => n.show(can));
+  const current = items.some(n => n.key === view) ? view : items[0].key;
 
   return (
     <div className="app">
@@ -41,47 +46,26 @@ function Shell() {
           <span className="brand-gem">🔮</span>
           <span className="brand-title">Delice_TV</span>
         </div>
+        <nav className="nav">
+          {items.map(n => (
+            <button key={n.key} className={`nav-btn${current === n.key ? ' on' : ''}`} onClick={() => setView(n.key)}>
+              {n.label}
+            </button>
+          ))}
+        </nav>
         <div className="topbar-spacer" />
-        {view === 'bingo' && role === 'admin' && (
-          <button className="btn btn-ghost btn-sm" onClick={() => setMode(m => (m === 'admin' ? 'player' : 'admin'))}>
-            {mode === 'admin' ? '👀 Vue joueur' : '🪄 Vue admin'}
-          </button>
-        )}
-        {isSuper && (
-          <button className="btn btn-ghost btn-sm" onClick={() => setView(v => (v === 'settings' ? 'bingo' : 'settings'))}>
-            {view === 'settings' ? '← Bingo' : '⚙ Réglages'}
-          </button>
-        )}
-        <span className="who">{user.username}</span>
+        <button className="me" title="Mon profil" onClick={() => setView('profile')}>
+          <Avatar user={user} size={30} />
+          <span className="who">{user.display_name || user.username}</span>
+        </button>
         <button className="btn btn-ghost btn-sm" onClick={logout}>Quitter</button>
       </header>
 
-      <main className="main">
-        {view === 'settings' && isSuper ? (
-          <SettingsPage onSaved={refreshAccess} />
-        ) : access === undefined ? (
-          <Loading />
-        ) : !role ? (
-          <div className="panel noaccess">
-            <div className="noaccess-emblem">🔒</div>
-            {access.error ? (
-              <>
-                <h2 className="panel-title">Serveur injoignable</h2>
-                <p className="muted">{access.error}</p>
-                <button className="btn btn-primary" onClick={() => { setAccess(undefined); refreshAccess(); }}>Réessayer</button>
-              </>
-            ) : (
-              <>
-                <h2 className="panel-title">Accès réservé</h2>
-                <p className="muted">Tu n'as pas encore accès à ce Bingo. Demande à un administrateur de t'ajouter.</p>
-              </>
-            )}
-          </div>
-        ) : role === 'admin' && mode === 'admin' ? (
-          <BingoAdmin />
-        ) : (
-          <BingoPlayer />
-        )}
+      <main className={`main${current === 'bingo' ? ' main-fit' : ''}`}>
+        {current === 'bingo'   && <BingoPage />}
+        {current === 'profile' && <ProfilePage />}
+        {current === 'twitch'  && <TwitchPage />}
+        {current === 'manage'  && <ManagePage />}
       </main>
     </div>
   );

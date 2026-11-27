@@ -1,6 +1,6 @@
 {
   "name": "delice-tv-backend",
-  "version": "1.0.1",
+  "version": "2.1.1",
   "private": true,
   "type": "module",
   "engines": { "node": ">=18" },
